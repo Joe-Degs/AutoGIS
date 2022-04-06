@@ -1,0 +1,4 @@
+name: autogis_lesson2
+channels:
+  - defaults
+prefix: C:\ProgramData\Anaconda3\envs\autogis_lesson2
