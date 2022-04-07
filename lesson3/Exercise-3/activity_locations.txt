@@ -1,0 +1,3 @@
+id;addr
+0;Koirasaarentie 35, 00590 Helsinki
+1;Gustaf Hällströmin katu 2, 00560 Helsinki
