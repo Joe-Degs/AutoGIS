@@ -18,9 +18,9 @@ dependencies:
   - brotli-bin=1.0.9=h8ffe710_7
   - brotlipy=0.7.0=py310he2412df_1004
   - bzip2=1.0.8=h8ffe710_4
-  - ca-certificates=2022.3.29=haa95532_1
+  - ca-certificates=2021.10.8=h5b45459_0
   - cairo=1.16.0=h15b3021_1010
-  - certifi=2020.6.20=pyhd3eb1b0_3
+  - certifi=2021.10.8=py310h5588dad_2
   - cffi=1.15.0=py310hcbf9ad4_0
   - cfitsio=4.1.0=h5a969a9_0
   - charset-normalizer=2.0.12=pyhd8ed1ab_0
@@ -52,6 +52,7 @@ dependencies:
   - freexl=1.0.6=ha8e266a_0
   - gdal=3.4.2=py310h7990aed_6
   - geographiclib=1.52=pyhd8ed1ab_0
+  - geojson=2.5.0=py_0
   - geopandas=0.10.2=pyhd8ed1ab_1
   - geopandas-base=0.10.2=pyha770c72_1
   - geopy=2.2.0=pyhd8ed1ab_0
@@ -134,7 +135,7 @@ dependencies:
   - notebook=6.4.8=py310haa95532_0
   - numpy=1.22.3=py310hcae7c84_2
   - openjpeg=2.4.0=hb211442_1
-  - openssl=1.1.1n=h2bbff1b_0
+  - openssl=1.1.1n=h8ffe710_0
   - packaging=21.3=pyhd8ed1ab_0
   - pandas=1.4.2=py310hf5e1058_1
   - pandocfilters=1.5.0=pyhd3eb1b0_0
