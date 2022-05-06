@@ -1,4 +1,6 @@
-from typing import Callable
+from typing import Callable, Optional
+from typing_extensions import Self
+from shapely.geometry import Polygon
 import osmnx as ox
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -19,30 +21,10 @@ class Graph:
         # address_with_distance=None,
         # place_names=None):
         
-        # G is a networkx.MultiDiGraph that osmnx produces
-        self.G: nx.MultiDiGraph | None = None
-        
-        # nodes in the graph
-        self.N: geopandas.GeoDataFrame | None = None
-        
-        # edges in the graph
-        self.E: geopandas.GeoDataFrame | None = None
-        
-        # boolean value to represent is graph is projected
-        self._projected = False
-        
-        # holds osmnx function to use to download graph
-        self.downloader: Callable = None
-        
-        #TODO: shortest path analysis and gathering of stats
-        # present this work by next week to TAs and get a lecturer
-        # to start guiding me on what to do next.
-        # download geometries in the graph extent and optionally
-        # provide parameters to plot functions to plot them
-        
-        Geometry = dict[str, geopandas.GeoDataFrame]
-        self.geometries: Geometry = dict()
        
+        # downloader downloads the graph 
+        self.downloader: Optional[Callable[..., nx.MultiDiGraph]] = None
+
         match graph_from: 
             case 'bbox':
                 self.downloader = ox.graph_from_bbox
@@ -55,30 +37,52 @@ class Graph:
             case 'polygon':
                 self.downloader = ox.graph_from_polygon
             case 'route':
-                self.downloader = opt_arg.
+                # get graph from a route object
+                self.downloader = opt_arg
+            case 'custom':
+                self.downloader = opt_arg
+
+        # G is a networkx.MultiDiGraph that osmnx produces
+        self.G: nx.MultiDiGraph | None = None
         
-    def download(self, *args, **kwargs):
+        # nodes in the graph
+        self.N: geopandas.GeoDataFrame | None = None
+        
+        # edges in the graph
+        self.E: geopandas.GeoDataFrame | None = None
+        
+        Geometry = dict[str, geopandas.GeoDataFrame]
+        self.geometries: Geometry = dict()
+        
+        # boolean value to represent is graph is projected
+        self._projected = False
+        
+        #TODO: shortest path analysis and gathering of stats
+        # present this work by next week to TAs and get a lecturer
+        # to start guiding me on what to do next.
+        # download geometries in the graph extent and optionally
+        # provide parameters to plot functions to plot them
+        
+    def graph(self, *args, **kwargs) -> nx.MultiDiGraph:
+        """get networkx.MultiDiGraph downloaded by osmnx
+
+        Returns:
+            networkx.MultiDiGraph: graph downloaded by osmnx
+        """
+        if self.G is None:
+            self.G = self.downloader(*args, **kwargs)
+        return self.G
+
+    def download(self, *args, **kwargs) -> Self:
         """download street network graph from openstreetmap using osmnx
 
         Returns:
             Self@Graph: object of graph
         """
-        if self.G is None:
-            self.G = self.downloader(*args, **kwargs)
+        self.graph(*args, **kwargs)
         return self
-    
 
-    def graph(self):
-        """get networkx.MultiDiGraph downloaded by osmnx
-
-        Returns:
-            networkx.MultiDigraph: graph downloaded by osmnx
-        """
-        if self.G is None and self.custom_download:
-            self.G = self.downloader()
-        return self.G
-    
-    def project(self, crs=None):
+    def project(self, crs=None) -> Self:
         """reproject graph to UTM zone if crs is None
         
         it projects to the UTM Zone in which the center
@@ -91,55 +95,77 @@ class Graph:
             Self@Graph: object of Graph
         """
         if not self._projected:
-            self.G = ox.project_graph(self.G, to_crs=crs)
-            self.N, self.E = ox.graph_to_gdfs(self.G)
+            self.G = ox.project_graph(self.graph(), to_crs=crs)
+            self.N, self.E = ox.graph_to_gdfs(self.graph())
             self._projected = True
         return self
     
-    def nodes(self):
+    def nodes(self) -> Self:
         """get nodes/intersection of streets from graph
 
         Returns:
-            _type_: self.G
+            Self@Graph: self.G
         """
         if self.N is None:
-            self.N = ox.graph_to_gdfs(self.G, nodes=True, edges=False)
+            self.N = ox.graph_to_gdfs(self.graph(), nodes=True, edges=False)
         return self
     
-    def edges(self):
+    def edges(self) -> Self:
         """get edges from the multidigraph `G`
 
         Returns:
             Self@Graph: returns the Graph object
         """
         if self.E is None:
-            self.E = ox.graph_to_gdfs(self.G, nodes=False, edges=True)
+            self.E = ox.graph_to_gdfs(self.graph(), nodes=False, edges=True)
         return self
     
-    def nodes_and_edges(self):
+    def nodes_and_edges(self) -> Self:
         """get nodes and edges from graph
 
         Returns:
             Self@Graph: object of graph
         """
-        self.nodes().edges()
-        return self
+        return self.nodes().edges()
     
     def get_crs(self):
         return self.nodes().N.crs
     
-    def with_geometry(self, key: str, tags: dict, dist=1000):
+    def polygon(self) -> Polygon:
+        self.nodes().N.unary_union.convex_hull
+    
+    def point_geometry(self, key: str, tags: dict, dist=1000) -> Self:
         """download geometries in the extent of the graph
+        
+        see osmnx.graph.geometries_from_point docs for more
 
         Args:
-            key (str): key of geometry type to download
+            key (str):   unique key describing OSM entity
+            tags (dict): tags to pass to osmnx function
+            dist (int | float):  distance in meters
 
         Returns:
-            _type_: _description_
+            Self: object of graph
         """
-        centroid = self.nodes().N.unary_union.convex_hull.buffer(0.1).centroid
-        self.geometries[key] = ox.geometries_from_point(centroid, tags, dist=dist)
-        self.geometries[key].to_crs(self.get_crs(), inplace=True)
+        if not key in self.geometries:
+            c = self.polygon().centroid
+            self.geometries[key] = to_crs(self.get_crs(),
+                                        ox.geometries_from_point((c.y, c.x), tags, dist=dist))
+        return self
+    
+    def polygon_geometry(self, key: str, tags: dict) -> Self:
+        """create a geodataframe of OSM entities with (multi)polygon
+
+        Args:
+            key (str): unique key describing OSM entity
+            tags (dict): tags to pass to osmnx function
+
+        Returns:
+            Self: graph
+        """
+        if not key in self.geometries:
+            self.geometries[key] = to_crs(self.get_crs(),
+                                        ox.geometries_from_polygon(self.polygon(), tags))
         return self
 
     def plot(self, graph=None):
@@ -151,13 +177,7 @@ class Graph:
         ---------
         graph: networkx.MultiDiGraph
         """
-        if graph is not None:
-            return ox.plot_graph(graph)
-        # do a plot
-        g = self.graph()
-        if g is not None:
-            return ox.plot_graph(g)
-        
+        return ox.plot_graph(graph or self.graph())
     
     def __get_fig_ax(self, args: dict):
         return plt.subplots(nrows=args['nrows'],

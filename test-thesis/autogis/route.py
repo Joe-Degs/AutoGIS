@@ -1,7 +1,10 @@
 import random
 import folium
+from matplotlib.patches import Polygon
 import pandas
 import geopandas
+import networkx as nx
+import osmnx as ox
 
 from .utils import *
 
@@ -12,9 +15,9 @@ class Route():
     on a bigger graph
     """
     
-    def __init__(self, point_type, origin, destination):
+    def __init__(self, point_type, origin, dest):
         """
-        NB: [origin/destination]_point can be a
+        NB: [origin/destination] point can be a
                1. tupe[float, float] | list[tupe[float, float]] -> (lat, long)
                2. shapely.Point | list[shapely.Point]
                3. geocodable string | list[str]
@@ -40,32 +43,32 @@ class Route():
         """
         
         self.origin: None | pandas.DataFrame = None
-        self.destination: None | pandas.DataFrame = None
+        self.dest: None | pandas.DataFrame = None
         self.origin_geo: None | geopandas.GeoDataFrame = None
-        self.destination_geo: None | geopandas.GeoDataFrame = None
-        self.all_points: None | pandas.DataFrame = None
-        self.all_points_geo: None | pandas.DataFrame = None
+        self.dest_geo: None | geopandas.GeoDataFrame = None
+        self.all_data: None | pandas.DataFrame = None
+        self.all_geo: None | pandas.DataFrame = None
         
         typ = point_type.split('_')
         assert len(typ) >= 1, "Route: invalid point_type"
         if typ[0] == 'csv':
-            self.origin, self.destination = load_csv(',', origin, destination)
+            self.origin, self.dest = load_csv(',', origin, dest)
         elif typ[0] == 'coords':
             
             # if coordinates is not list, convert to list
-            if type(origin) == tuple:
+            if type(origin) is tuple and type(dest) is tuple:
                 origin = [origin]
-                destination = [destination]
-                
-                print(self.origin, self.destination)
+                dest = [dest] 
+                # DEBUG 
+                print(self.origin, self.dest)
                 
             self.origin = pandas.DataFrame(origin, columns=['y', 'x'])
-            self.destination = pandas.DataFrame(destination, columns=['y', 'x'])
+            self.dest = pandas.DataFrame(dest, columns=['y', 'x'])
         
         # do the geocode
         if 'coords' in point_type:
-            self.origin_geo, self.destination_geo = reverse_geocode_all(
-                coords_from_df(self.origin), coords_from_df(self.destination))
+            self.origin_geo, self.dest_geo = reverse_geocode_all(
+                coords_from_df(self.origin), coords_from_df(self.dest))
         elif 'name' in point_type:
             # geocode names to points or polygons
             pass
@@ -73,42 +76,49 @@ class Route():
     def to_crs(self, crs):
         "convert origin/destination geodata to new CRS"
         self.origin_geo.to_crs(crs, inplace=True)
-        self.destination_geo.to_crs(crs, inplace=True)
+        self.dest_geo.to_crs(crs, inplace=True)
         return
     
-    # def all_points(self):
-    #     """concatenate pandas dataframe of origin and destination points
-    #     """
-    #     # if self.all_points is None:
-    #     #     self.all_points = join = \
-    #     #         pandas.concat([self.origin, self.destination], axis=0, ignore_index=True)
-    #     return \
-    #         (self.all_points := \
-    #             pandas.concat([self.origin, self.destination], axis=0, ignore_index=True)) \
-    #                 if self.all_points is None else self.all_points
+    def all_points(self):
+        """concatenate pandas dataframe of origin and destination points
+        """
+        if self.all_data is None:
+            self.all_data = \
+                pandas.concat([self.origin, self.dest], axis=0, ignore_index=True)
+        return self.all_data
         
     def geodata(self) -> geopandas.GeoDataFrame:
         """geodata makes a geodataframe of geocoded origin/destination
         """
-        if self.all_points_geo is None:
-            self.all_points_geo = self.origin_geo.append(self.destination_geo)
-            self.all_points_geo.reset_index(inplace=True)
-        return self.all_points_geo
+        if self.all_geo is None:
+            self.all_geo = self.origin_geo.append(self.dest_geo)
+            self.all_geo.reset_index(inplace=True)
+        return self.all_geo
 
-    def head(self):
+    def head(self) -> tuple[pandas.DataFrame]:
         "return head of pandas dataframe"
-        return self.origin, self.destination
+        return self.origin, self.dest
     
-    def head_geo(self) -> tuple[geopandas.GeoDataFrame, geopandas.GeoDataFrame]:
-        """return head of geodataframe"""
-        return self.origin_geo, self.destination_geo
+    def head_geo(self) -> tuple[geopandas.GeoDataFrame]:
+        """return head of geodataframe
+        """
+        return self.origin_geo, self.dest_geo
     
-    def get_extent(self):
+    def extent(self) -> Polygon:
         """get a poygon specifying the extent of the route points
         it is buffered a little bit to contain important adjoining
         streets that might be cut off otherwise
         """
         return self.geodata().unary_union.convex_hull.buffer(0.1)
+    
+    def graph(self, **kwargs) -> nx.MultiDiGraph:
+        """download the street network of the area in
+        which the points lie
+
+        Returns:
+            nx.MultiDiGraph: graph reprenting street network
+        """
+        return ox.graph_from_polygon(self.extent(), **kwargs)
     
     def explore(self, **kwargs) -> folium.Map:
         """do interactive plot to explore origin/destination points
@@ -117,14 +127,14 @@ class Route():
         coords = [[p.y, p.x] for p in geodata.geometry]
         map = folium.Map(location=random.choice(coords), tiles='OpenStreetMap', 
             zoom_start=12, control_scale=True)
-        # add markers for the name of each location added to map
+        # add address markers to the map
         for i, coord in enumerate(coords):
             map.add_child(
                 folium.Marker(location=coord, popup=str(geodata.address[i]),
                               icon=folium.Icon(color='green', icon='ok-sign'))
             )
 
-        if kwargs['filepath'] is not None:
+        if 'filepath' in kwargs:
             map.save(kwargs['filepath'])
 
         return map
