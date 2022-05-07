@@ -10,7 +10,8 @@ from .route import *
 
 class Graph:
     
-    def __init__(self, graph_from: str, opt_arg=None):
+    def __init__(self, graph_from: str, opt_arg:Optional[Callable]=None):
+
         # from_bbox=False,
         # from_place=False,
         # from_address=False,
@@ -37,8 +38,8 @@ class Graph:
             case 'polygon':
                 self.downloader = ox.graph_from_polygon
             case 'route':
-                # get graph from a route object
-                self.downloader = opt_arg
+                # get graph from origins(s)/destination(s) points
+                self.downloader = opt_arg.graph
             case 'custom':
                 self.downloader = opt_arg
 
@@ -50,9 +51,20 @@ class Graph:
         
         # edges in the graph
         self.E: geopandas.GeoDataFrame | None = None
-        
-        Geometry = dict[str, geopandas.GeoDataFrame]
+       
+        # extra OSM entities in the extent of the graph
+        # The Geometry type represents a plottable geometry
+        # the dict holds the arguments to pass to the `plot`
+        # function
+        # TODO(Joe-Degs): change self.geometries to represent
+        # this.
+        Geometry = tuple[geopandas.GeoDataFrame, dict]
         self.geometries: Geometry = dict()
+
+        # GRoute type is a plottable Route. It holds the Route
+        # object and arguments to pass to the plot function
+        GRoute = tuple[Route, dict]
+        self.routes: list[GRoute] = []
         
         # boolean value to represent is graph is projected
         self._projected = False
@@ -133,10 +145,15 @@ class Graph:
     
     def polygon(self) -> Polygon:
         self.nodes().N.unary_union.convex_hull
-    
-    def point_geometry(self, key: str, tags: dict, dist=1000) -> Self:
-        """download geometries in the extent of the graph
+
+
+    # TODO(Joe-Degs): Geometry type has changed, change these functions to
+    # reflect that. currrently this shit sucks ass
+    def geometry_from_point(self, key: str, tags: dict, dist=1000) -> Self:
+        """create geodataframe of OSM entities with shapely point
         
+        it uses the center of the graph with the distance and tags of
+        geometries to query for on OSM and downloads those geometries.
         see osmnx.graph.geometries_from_point docs for more
 
         Args:
@@ -150,11 +167,15 @@ class Graph:
         if not key in self.geometries:
             c = self.polygon().centroid
             self.geometries[key] = to_crs(self.get_crs(),
-                                        ox.geometries_from_point((c.y, c.x), tags, dist=dist))
+                    ox.geometries_from_point((c.y, c.x), tags, dist=dist))
         return self
-    
-    def polygon_geometry(self, key: str, tags: dict) -> Self:
-        """create a geodataframe of OSM entities with (multi)polygon
+
+    def geometry_from_polygon(self, key: str, tags: dict) -> Self:
+        """create geodataframe of OSM entities with (multi)polygon
+
+        it uses the center of the graph with the distance and tags of
+        geometries to query for on OSM and downloads those geometries.
+        see osmnx.graph.geometries_from_point docs for more
 
         Args:
             key (str): unique key describing OSM entity
@@ -165,10 +186,25 @@ class Graph:
         """
         if not key in self.geometries:
             self.geometries[key] = to_crs(self.get_crs(),
-                                        ox.geometries_from_polygon(self.polygon(), tags))
+                    ox.geometries_from_polygon(self.polygon(), tags))
         return self
 
-    def plot(self, graph=None):
+    def with_route(route: Route, plt_args: Optional[dict]=None) -> Self:
+        """add route(s) to the graph and details for plotting it
+
+        this route(s) can be plotted, used for shortest path analysis
+        and other types network analysis in the graph
+
+        Args:
+            route (Route): route of origin/destination point(s)
+            plt_args (dict | None): keyword args to pass to `plot` function
+        """
+        # route.route_points(self.nodes().N, self.edges().E)
+        # args = plot_args(**plt_args):
+        # self.routes.append((route, args))
+        return self
+
+    def plot(self, graph: Optional[nx.MultiDiGraph]=None):
         """plot uses the osmnx.plot_graph method to do exploratory plot
         of the graph. It recieves an optional `graph` parameter to plot
         instead of the one associated with the object.
@@ -178,7 +214,10 @@ class Graph:
         graph: networkx.MultiDiGraph
         """
         return ox.plot_graph(graph or self.graph())
-    
+   
+    # TODO(Joe-Degs): take care of this shit, this whole code is
+    # gross, but this shit is way too gross. remove it, make it
+    # betterrrrr!
     def __get_fig_ax(self, args: dict):
         return plt.subplots(nrows=args['nrows'],
                           ncols=args['ncols'],

@@ -40,6 +40,11 @@ def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     return data.to_crs(crs) if data.crs != crs \
         else data
 
+# TODO(Joe-Degs): clean up this function. make it into
+# a class or something. but make it easy to get default
+# plot keyword arguments for point/polygon and lines.
+# If its easy to differentiate them, it makes it easier to
+# plot functions and other things.
 def plot_args(nrows=1,
               ncols=1,
               figsize=(10, 10),
