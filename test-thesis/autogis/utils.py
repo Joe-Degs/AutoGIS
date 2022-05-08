@@ -40,40 +40,12 @@ def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     return data.to_crs(crs) if data.crs != crs \
         else data
 
-# TODO(Joe-Degs): clean up this function. make it into
-# a class or something. but make it easy to get default
-# plot keyword arguments for point/polygon and lines.
-# If its easy to differentiate them, it makes it easier to
-# plot functions and other things.
-def plot_args(nrows=1,
-              ncols=1,
-              figsize=(10, 10),
-              axis=True,
-              tight_layout=True,
-              edges=True,
-              nodes=True,
-            
-              # styles for customizing lines and points
-              line_color='gray',
-              linewidth=0.7,
-              line_alpha=0.5,
-              line_style='-',
-              node_color='gray',
-              node_size=20,
-              node_alpha=None,
-              title="",
-            
-              # othe stuff
-              tiles=False,
-              filepath=None,
-              static_tile=ctx.providers.CartoDB.Positron,
-              interactive_tile='OpenStreetMap',
-              customize_plot=None) -> dict: 
+class PlotArgs(dict):    
     """collects all the args required to do a static/interactive plot
-    
+
     this is passed to all the plotting functions that rely these
     parameters for plotting
-    
+
     Parameters
     -----------
     nrows=1 : int
@@ -117,5 +89,104 @@ def plot_args(nrows=1,
     customize_func=None : Func | None
         callback of signature `Func[fig, ax] -> None`, used to customize
         plot to the callers satisfaction
+    """
+
+    def __init__(self, add_keys=True, **kwargs):
+        self.update(
+                nrows=1,
+                ncols=1,
+                figsize=(10, 10),
+                axis=True,
+                tight_layout=True,
+                edges=True,
+                nodes=True,
+
+                # generic kwargs for nodes/edges
+                color='gray',
+                alpha=0.5,
+
+                # style for lines
+                linewidth=0.7,
+                linestyle='-',
+
+                # styles for nodes/polygons
+                markersize=20,
+                marker='o',
+
+                # static plot config
+                basemap=True,
+                source=ctx.providers.CartoDB.Positron,
+
+                # interactive plot config
+                tiles='OpenStreetMap',
+                zoom_start=12,
+                control_scale=True,
+
+                # others
+                title="",
+                filepath=None,
+                customize_plot=None,
+                **kwargs)
+
+        self.gen = ['color', 'alpha']
+        if add_keys:
+            self.gen = self.gen + list(kwargs.keys())
+
+    def update(self, **kwargs):
+        """update dict given with (keyword) arguments
         """
-    return locals()
+        for key, val in dict(**kwargs).items():
+            self[key] = val
+
+    def from_keys(self, keys: set | list) -> dict:
+        """extract k,v pairs from dict based on set/list of keys
+
+        Args:
+            keys: (set | list): keys to extract from dict
+        """
+        return {k: v for k, v in self.items() if k in keys}
+
+    def lines(self, **kwargs) -> dict:
+        """get keyword arguments for plotting point/polygon geomtries
+
+        """
+        self.update(**kwargs)
+        keys = set(self.gen + ['linewidth', 'linestyle'] + list(kwargs.keys()))
+        return self.from_keys(keys)
+
+    def points(self, **kwargs) -> dict:
+        """get keyword arguments for plotting line geometries
+
+        """
+        self.update(**kwargs)
+        keys = set(self.gen + ['marker', 'markersize'] + list(kwargs.keys()))
+        return self.from_keys(keys)
+
+    def interactive(self, **kwargs) -> dict:
+        """get keyword arguments for interactive plots
+
+        """
+        self.update(**kwargs)
+        keys = set(['tiles', 'zoom_start', 'control_scale'] + list(kwargs.keys()))
+        return self.from_keys(keys)
+
+    def static(self, **kwargs) -> dict:
+        """get keyword arguments for static plots
+
+        """
+        self.update(**kwargs)
+        keys = set(['source'] + list(kwargs.keys()))
+        return self.from_keys(keys)
+
+    def kwargs(self, geodata: geopandas.GeoDataFrame, **kwargs) -> dict:
+        """get keyword arguments based on the geometry type of geodata
+
+        Args:
+            geodata (geopandas.GeoDataFrame): geodataframe
+            kwargs: keyword arguments to pass to plot function
+        """
+        gtypes = ' '.join(list(geodata.geometry.geom_type.unique())).lower()
+        if 'point' in gtypes or 'polygon' in gtypes:
+            self.points(**kwargs)
+        elif 'line' in gtypes:
+            self.lines(**kwargs)

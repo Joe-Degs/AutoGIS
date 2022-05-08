@@ -44,13 +44,13 @@ class Graph:
                 self.downloader = opt_arg
 
         # G is a networkx.MultiDiGraph that osmnx produces
-        self.G: nx.MultiDiGraph | None = None
+        self.G: Optional[nx.MultiDiGraph] = None
         
         # nodes in the graph
-        self.N: geopandas.GeoDataFrame | None = None
+        self.N: Optional[geopandas.GeoDataFrame] = None
         
         # edges in the graph
-        self.E: geopandas.GeoDataFrame | None = None
+        self.E: Optional[geopandas.GeoDataFrame] = None
        
         # extra OSM entities in the extent of the graph
         # The Geometry type represents a plottable geometry
@@ -60,12 +60,7 @@ class Graph:
         # this.
         Geometry = tuple[geopandas.GeoDataFrame, dict]
         self.geometries: Geometry = dict()
-
-        # GRoute type is a plottable Route. It holds the Route
-        # object and arguments to pass to the plot function
-        GRoute = tuple[Route, dict]
-        self.routes: list[GRoute] = []
-        
+ 
         # boolean value to represent is graph is projected
         self._projected = False
         
@@ -144,12 +139,17 @@ class Graph:
         return self.nodes().N.crs
     
     def polygon(self) -> Polygon:
-        self.nodes().N.unary_union.convex_hull
+        self.edges().E.unary_union.convex_hull
 
 
-    # TODO(Joe-Degs): Geometry type has changed, change these functions to
-    # reflect that. currrently this shit sucks ass
-    def geometry_from_point(self, key: str, tags: dict, dist=1000) -> Self:
+    def __add_geometry(self, key, geom, **kwargs):
+        """add new geometry to list of geomtries
+        """
+        self.geometries[key] = (geom, PlotArgs(**kwargs).kwargs(geom))
+        return
+
+
+    def geometry_from_point(self, key: str, tags: dict, dist=1000, **kwargs) -> Self:
         """create geodataframe of OSM entities with shapely point
         
         it uses the center of the graph with the distance and tags of
@@ -166,11 +166,12 @@ class Graph:
         """
         if not key in self.geometries:
             c = self.polygon().centroid
-            self.geometries[key] = to_crs(self.get_crs(),
+            geom = to_crs(self.get_crs(),
                     ox.geometries_from_point((c.y, c.x), tags, dist=dist))
+            self.__add_geometry(key, geom, **kwargs)
         return self
 
-    def geometry_from_polygon(self, key: str, tags: dict) -> Self:
+    def geometry_from_polygon(self, key: str, tags: dict, **kwargs) -> Self:
         """create geodataframe of OSM entities with (multi)polygon
 
         it uses the center of the graph with the distance and tags of
@@ -180,26 +181,30 @@ class Graph:
         Args:
             key (str): unique key describing OSM entity
             tags (dict): tags to pass to osmnx function
+            kwargs (): keyword argumnents to pass to plot funtions
 
         Returns:
             Self: graph
         """
         if not key in self.geometries:
-            self.geometries[key] = to_crs(self.get_crs(),
+            geom = to_crs(self.get_crs(),
                     ox.geometries_from_polygon(self.polygon(), tags))
+            self.__add_geometry(key, geom, **kwargs)
         return self
 
-    def with_route(route: Route, plt_args: Optional[dict]=None) -> Self:
-        """add route(s) to the graph and details for plotting it
+    # TODO(Joe-Degs): do the add_routes function on routes
+    def add_route(route: Route, **kwargs) -> Self:
+        """add origin/dest points and get shortest path between points
 
         this route(s) can be plotted, used for shortest path analysis
         and other types network analysis in the graph
 
         Args:
             route (Route): route of origin/destination point(s)
-            plt_args (dict | None): keyword args to pass to `plot` function
+            kwargs: keyword args to pass to `plot` function
         """
-        # route.route_points(self.nodes().N, self.edges().E)
+        self.projected().nodes_and_edges()
+        # route.shortest_paths(self.N, self.E)
         # args = plot_args(**plt_args):
         # self.routes.append((route, args))
         return self
@@ -218,34 +223,29 @@ class Graph:
     # TODO(Joe-Degs): take care of this shit, this whole code is
     # gross, but this shit is way too gross. remove it, make it
     # betterrrrr!
-    def __get_fig_ax(self, args: dict):
+    def __get_fig_ax(self, args):
         return plt.subplots(nrows=args['nrows'],
                           ncols=args['ncols'],
                           figsize=args['figsize'])
     
     
-    def static_plot(self, **plot_kwargs):
+    def static_plot(self, lines: dict, points: dict, **kwargs):
         """
 
         Returns:
             pyplot.Figure, pyplot.Axes: return the figure and axis
         """
-        args = plot_args(**plot_kwargs)
+        args = PlotArgs(add_keys=False, **kwargs)
         fig, ax = self.__get_fig_ax(args)
         # TODO: ax could be anything depending on nrows, ncols.. check that!
         
         # plot edges in network
         if args['nodes']:
-            # TODO: make args['markersize'] changeable
-            self.nodes().N.plot(ax=ax, color=args['node_color'],
-                           alpha=args['node_alpha'],
-                           markersize=args['node_size'])
+            self.nodes().N.plot(ax=ax, **args.points(alpha=None, **points))
         
         # plot the edges in graph / street network
         if args['edges']:
-            self.edges().E.plot(ax=ax, color=args['line_color'],
-                   linewidth=args['linewidth'],
-                    alpha=args['line_alpha'])
+            self.edges().E.plot(ax=ax, **args.lines(**lines))
         
         # plot the axis
         if not args['axis']:
@@ -256,8 +256,8 @@ class Graph:
             plt.tight_layout()
         
         # add basemap
-        if args['tiles'] and (crs := self.get_crs()) is not None:
-                ctx.add_basemap(ax, crs=crs, source=args['static_tile'])
+        if args['basemap'] and (crs := self.get_crs()) is not None:
+                ctx.add_basemap(ax, crs=crs, **args.static())
         
         # save the resulting plot
         if args['filepath'] is not None:

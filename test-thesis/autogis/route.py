@@ -1,10 +1,10 @@
 import random
 import folium
-from matplotlib.patches import Polygon
 import pandas
 import geopandas
 import networkx as nx
 import osmnx as ox
+from shapely.geometry import Polygon
 
 from .utils import *
 
@@ -69,6 +69,13 @@ class Route():
         if 'coords' in point_type:
             self.origin_geo, self.dest_geo = reverse_geocode_all(
                 coords_from_df(self.origin), coords_from_df(self.dest))
+
+            # get shapely types of geometry column and assert they are
+            # all point geometries
+            all_types = list(self.origin_geo.geometry.geom_type.unique()) \
+                    + list(self.dest_geo.geometry.geom_type.unique())
+            assert all('point' in t.lower() for t in all_types), \
+                    "origin/destination points must be Point geometries"
         elif 'name' in point_type:
             # geocode names to points or polygons
             pass
@@ -112,21 +119,29 @@ class Route():
         return self.geodata().unary_union.convex_hull.buffer(0.1)
     
     def graph(self, **kwargs) -> nx.MultiDiGraph:
-        """download the street network of the area in
-        which the points lie
+        """download the street network graph of the area covering routes
 
         Returns:
             nx.MultiDiGraph: graph reprenting street network
         """
         return ox.graph_from_polygon(self.extent(), **kwargs)
+
+    def shortest_paths(self, nodes, edges):
+        """shortest path analysis
+
+        Args:
+            nodes (geopandas.GeoDataFrame):
+            edges (geopandas.GeoDataFrame):
+        """
+        return self
     
     def explore(self, **kwargs) -> folium.Map:
         """do interactive plot to explore origin/destination points
         """
         geodata = self.geodata()
         coords = [[p.y, p.x] for p in geodata.geometry]
-        map = folium.Map(location=random.choice(coords), tiles='OpenStreetMap', 
-            zoom_start=12, control_scale=True)
+        map = folium.Map(
+                **PlotArgs(location=random.choice(coords).interactive(**kwargs)))
         # add address markers to the map
         for i, coord in enumerate(coords):
             map.add_child(
