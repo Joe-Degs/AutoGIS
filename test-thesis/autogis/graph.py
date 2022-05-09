@@ -9,19 +9,25 @@ from .utils import *
 from .route import *
 
 class Graph:
+    """Graph provides basic functionality for downloading street networks as
+    directed graph's from Open Street Map using the osmnx library
+    """
     
     def __init__(self, graph_from: str, opt_arg:Optional[Callable]=None):
+        """
+        Args:
+            graph_from (str): options to customize the method/function for
+            downloading the street network graph. available options are;
+                * 'bbox' : use osmnx.graph_from_bbox function
+                * 'address' : use osmnx.graph_from_address function
+                * 'place' : use osmnx.graph_from_place function
+                * 'polygon' : use osmnx.graph_from_polygon function
+                * 'point' : use osmnx.graph_from_point function
+                * 'route' : get graph from `Route` object
+                * 'custom' : pass custom function in opt_arg parameter
 
-        # from_bbox=False,
-        # from_place=False,
-        # from_address=False,
-        # from_polygon=False,
-        # from_point=False,
-        # custom_download=False, func=None,
-        # coord_with_distance=False,
-        # address_with_distance=None,
-        # place_names=None):
-        
+            opt_arg (Optional[Callable], optional): Defaults to None.
+        """
        
         # downloader downloads the graph 
         self.downloader: Optional[Callable[..., nx.MultiDiGraph]] = None
@@ -54,10 +60,7 @@ class Graph:
        
         # extra OSM entities in the extent of the graph
         # The Geometry type represents a plottable geometry
-        # the dict holds the arguments to pass to the `plot`
-        # function
-        # TODO(Joe-Degs): change self.geometries to represent
-        # this.
+        # the dict holds the arguments to pass to plot
         Geometry = tuple[geopandas.GeoDataFrame, dict]
         self.geometries: Geometry = dict()
  
@@ -118,7 +121,7 @@ class Graph:
         return self
     
     def edges(self) -> Self:
-        """get edges from the multidigraph `G`
+        """get street network lines from graph
 
         Returns:
             Self@Graph: returns the Graph object
@@ -135,15 +138,21 @@ class Graph:
         """
         return self.nodes().edges()
     
-    def get_crs(self):
+    def crs(self):
+        """get CRS of the graph
+        """
         return self.nodes().N.crs
     
-    def polygon(self) -> Polygon:
+    def extent(self) -> Polygon:
+        """get entire area that graph covers as a shapely polygon
+
+        Returns:
+            Polygon: shapely polygon representing the extent of graph
+        """
         self.edges().E.unary_union.convex_hull
 
-
-    def __add_geometry(self, key, geom, **kwargs):
-        """add new geometry to list of geomtries
+    def __add_geometry(self, key: str, geom: geopandas.GeoDataFrame, **kwargs):
+        """add new geometry to list of geometries
         """
         self.geometries[key] = (geom, PlotArgs(**kwargs).kwargs(geom))
         return
@@ -165,8 +174,8 @@ class Graph:
             Self: object of graph
         """
         if not key in self.geometries:
-            c = self.polygon().centroid
-            geom = to_crs(self.get_crs(),
+            c = self.extent().centroid
+            geom = to_crs(self.crs(),
                     ox.geometries_from_point((c.y, c.x), tags, dist=dist))
             self.__add_geometry(key, geom, **kwargs)
         return self
@@ -187,13 +196,13 @@ class Graph:
             Self: graph
         """
         if not key in self.geometries:
-            geom = to_crs(self.get_crs(),
-                    ox.geometries_from_polygon(self.polygon(), tags))
+            geom = to_crs(self.crs(),
+                    ox.geometries_from_polygon(self.extent(), tags))
             self.__add_geometry(key, geom, **kwargs)
         return self
 
     # TODO(Joe-Degs): do the add_routes function on routes
-    def add_route(route: Route, **kwargs) -> Self:
+    def add_route(self, route: Route, **kwargs) -> Self:
         """add origin/dest points and get shortest path between points
 
         this route(s) can be plotted, used for shortest path analysis
@@ -204,7 +213,7 @@ class Graph:
             kwargs: keyword args to pass to `plot` function
         """
         self.projected().nodes_and_edges()
-        # route.shortest_paths(self.N, self.E)
+        # route.shortest_paths(self)
         # args = plot_args(**plt_args):
         # self.routes.append((route, args))
         return self
@@ -256,7 +265,7 @@ class Graph:
             plt.tight_layout()
         
         # add basemap
-        if args['basemap'] and (crs := self.get_crs()) is not None:
+        if args['basemap'] and (crs := self.crs()) is not None:
                 ctx.add_basemap(ax, crs=crs, **args.static())
         
         # save the resulting plot
@@ -266,8 +275,8 @@ class Graph:
         plt.show()
         return fig, ax
 
-    def interactive_plot(self, *args, **kwargs):
+    def interactive_plot(self, **kwargs):
         """do an interactive plot of the map
         """
-        args = plot_args(*args, **kwargs)
+        args = PlotArgs(add_keys=False, **kwargs).interactive()
         return args

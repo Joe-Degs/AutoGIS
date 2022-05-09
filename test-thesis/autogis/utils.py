@@ -1,4 +1,5 @@
 import os
+from typing import Sequence
 import geopandas
 import pandas
 
@@ -6,22 +7,23 @@ import contextily as ctx
 from pyproj import CRS
 from shapely.geometry import Point
 
-def load_csv(sep: str, *files: str, **kwargs) -> pandas.DataFrame:
+def load_csv(sep: str, *files: str, **kwargs) -> list[pandas.DataFrame]:
     """load csv file from filesystem"""
-    assert len(files), "load_csv: expecting two files"
+    assert len(files) == 2, "load_csv: expecting two files"
     assert all([os.path.isfile(f) for f in files]), \
         "load_csv: arguments must be valid csv files"
     return [pandas.read_csv(file, sep=sep or ',', **kwargs) \
         for file in files]
 
 def reverse_geocode(coords: list[Point]) -> geopandas.GeoDataFrame:
-    """
+    """reverse geocode list of shapely points
+
     """
     return geopandas.tools.reverse_geocode(coords)
 
 def reverse_geocode_all(*data: list[Point]) \
     -> tuple[geopandas.GeoDataFrame]:
-    """returns geocoded dataframe from coordinates
+    """reverse geocode list of coordinates
     """
     return tuple(map(reverse_geocode, data))
 
@@ -29,6 +31,12 @@ def coords_from_df(df: pandas.DataFrame) -> list[Point]:
     """extract coordinates from csv file
     """
     return list(map(lambda x: Point(x[1].x, x[1].y), df.iterrows()))
+
+def lat_long(geodata: geopandas.GeoDataFrame) -> tuple[float]:
+    return 
+
+def lat_long_multiple(*geodata: geopandas.GeoDataFrame) -> tuple[tuple[float]]:
+    return
 
 def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     -> geopandas.GeoDataFrame:
@@ -86,12 +94,14 @@ class PlotArgs(dict):
         see `ctx.providers` for more providers from contextily
     interactive_tile='OpenStreetMap' : str
         service to use for interactive plots
-    customize_func=None : Func | None
+    callback=None : Func | None
         callback of signature `Func[fig, ax] -> None`, used to customize
         plot to the callers satisfaction
     """
 
     def __init__(self, add_keys=True, **kwargs):
+        
+        # add default keyword arguments to dict
         self.update(
                 nrows=1,
                 ncols=1,
@@ -125,21 +135,27 @@ class PlotArgs(dict):
                 # others
                 title="",
                 filepath=None,
-                customize_plot=None,
-                **kwargs)
+
+                # callback: Callable[[Fig, Axes], None]
+                # get's passed fig, ax
+                callback=None,
+            )
+        
+        # update dict with user supplied keyword arguments
+        self.update(**kwargs)
 
         self.gen = ['color', 'alpha']
         if add_keys:
             self.gen = self.gen + list(kwargs.keys())
 
     def update(self, **kwargs):
-        """update dict given with (keyword) arguments
+        """update plot keyword arguments
         """
         for key, val in dict(**kwargs).items():
             self[key] = val
 
-    def from_keys(self, keys: set | list) -> dict:
-        """extract k,v pairs from dict based on set/list of keys
+    def from_keys(self, keys: Sequence) -> dict:
+        """extract dict from plot keyword args based on a sequence of keys
 
         Args:
             keys: (set | list): keys to extract from dict

@@ -5,8 +5,10 @@ import geopandas
 import networkx as nx
 import osmnx as ox
 from shapely.geometry import Polygon
+from typing import Optional
 
 from .utils import *
+from .graph import Graph
 
 class Route():
     """route allows you to load a point or bunch of them
@@ -32,8 +34,9 @@ class Route():
         point_type : str
             specify how the data of the route
             values:
-                1. csv_coords (x, y) points || csv_names (names to geocode)
-                2. coords || coords_list
+                1. csv_coords (lat, long) points || csv_address {address(es) to geocode}
+                2. coords ([lat, long] values) || coords_list (list of [lat, long] values)
+                2. address | sequence of addresses
             should be loaded
 
         origin : str | tuple[float, float] | list[tuple[float, float]]
@@ -42,12 +45,13 @@ class Route():
             destination points for shortest path analysis
         """
         
-        self.origin: None | pandas.DataFrame = None
-        self.dest: None | pandas.DataFrame = None
-        self.origin_geo: None | geopandas.GeoDataFrame = None
-        self.dest_geo: None | geopandas.GeoDataFrame = None
-        self.all_data: None | pandas.DataFrame = None
-        self.all_geo: None | pandas.DataFrame = None
+        self.origin:     Optional[pandas.DataFrame]       = None
+        self.dest:       Optional[pandas.DataFrame]       = None
+        self.all_data:   Optional[pandas.DataFrame]       = None
+
+        self.origin_geo: Optional[geopandas.GeoDataFrame] = None
+        self.dest_geo:   Optional[geopandas.GeoDataFrame] = None
+        self.all_geo:    Optional[geopandas.GeoDataFrame] = None
         
         typ = point_type.split('_')
         assert len(typ) >= 1, "Route: invalid point_type"
@@ -77,7 +81,7 @@ class Route():
             assert all('point' in t.lower() for t in all_types), \
                     "origin/destination points must be Point geometries"
         elif 'name' in point_type:
-            # geocode names to points or polygons
+            #TODO(Joe-Degs): add geocode from address functionality
             pass
         
     def to_crs(self, crs):
@@ -86,8 +90,8 @@ class Route():
         self.dest_geo.to_crs(crs, inplace=True)
         return
     
-    def all_points(self):
-        """concatenate pandas dataframe of origin and destination points
+    def all_points(self) -> pandas.DataFrame:
+        """concatenate and return origin/dest points
         """
         if self.all_data is None:
             self.all_data = \
@@ -95,7 +99,7 @@ class Route():
         return self.all_data
         
     def geodata(self) -> geopandas.GeoDataFrame:
-        """geodata makes a geodataframe of geocoded origin/destination
+        """concatenate and return origin/destination geodata
         """
         if self.all_geo is None:
             self.all_geo = self.origin_geo.append(self.dest_geo)
@@ -103,11 +107,15 @@ class Route():
         return self.all_geo
 
     def head(self) -> tuple[pandas.DataFrame]:
-        "return head of pandas dataframe"
+        """return head of origin/dest points
+
+        Returns:
+            tuple[pandas.DataFrame]: _description_
+        """
         return self.origin, self.dest
     
     def head_geo(self) -> tuple[geopandas.GeoDataFrame]:
-        """return head of geodataframe
+        """return head of origin/dest geodataframe
         """
         return self.origin_geo, self.dest_geo
     
@@ -126,17 +134,23 @@ class Route():
         """
         return ox.graph_from_polygon(self.extent(), **kwargs)
 
-    def shortest_paths(self, nodes, edges):
+    def shortest_paths(self, G: Graph):
         """shortest path analysis
 
         Args:
-            nodes (geopandas.GeoDataFrame):
-            edges (geopandas.GeoDataFrame):
+            G: (Graph): graph data to do shortest path analysis on
         """
+        G.project().nodes_and_edges()
+        crs = G.crs()
+        self.origin_geo = to_crs(crs, self.origin_geo)
+        self.dest_geo = to_crs(crs, self.dest_geo)
         return self
     
     def explore(self, **kwargs) -> folium.Map:
         """do interactive plot to explore origin/destination points
+        
+        Args:
+            **kwargs: keyword args for folium map plotter
         """
         geodata = self.geodata()
         coords = [[p.y, p.x] for p in geodata.geometry]

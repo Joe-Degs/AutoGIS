@@ -7,5 +7,5 @@ upon by others.
 ### Drivable Street Network - Adum
 ![alt text](https://github.com/Joe-Degs/AutoGIS/raw/master/test-thesis/adum_neighbourhood_street_drive.png)
 
-# All Street Networks - from center of Adum to 1KM radius
+### All Street Networks - from center of Adum to 1KM radius
 ![alt text](https://github.com/Joe-Degs/AutoGIS/raw/master/test-thesis/yikes_plot.png)
