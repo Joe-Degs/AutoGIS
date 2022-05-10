@@ -8,7 +8,6 @@ from shapely.geometry import Polygon
 from typing import Optional
 
 from .utils import *
-from .graph import Graph
 
 class Route():
     """route allows you to load a point or bunch of them
@@ -134,17 +133,27 @@ class Route():
         """
         return ox.graph_from_polygon(self.extent(), **kwargs)
 
-    def shortest_paths(self, G: Graph):
+    # this function cannot take a graph cos circular imports, so we
+    # have to do all shortest paths on the graph instead
+    def shortest_paths(self):
         """shortest path analysis
 
         Args:
             G: (Graph): graph data to do shortest path analysis on
         """
-        G.project().nodes_and_edges()
-        crs = G.crs()
+        # G.project().nodes_and_edges()
+        # crs = G.crs()
+        return self
+
+    def reproject(self, crs: CRS | str):
+        """reproject geodata into new CRS
+
+        Args:
+            crs (pyproj.CRS | str): crs to project data to
+        """
         self.origin_geo = to_crs(crs, self.origin_geo)
         self.dest_geo = to_crs(crs, self.dest_geo)
-        return self
+        self.all_geo = to_crs(crs, self.geodata())
     
     def explore(self, **kwargs) -> folium.Map:
         """do interactive plot to explore origin/destination points

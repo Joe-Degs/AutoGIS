@@ -32,11 +32,44 @@ def coords_from_df(df: pandas.DataFrame) -> list[Point]:
     """
     return list(map(lambda x: Point(x[1].x, x[1].y), df.iterrows()))
 
-def lat_long(geodata: geopandas.GeoDataFrame) -> tuple[float]:
-    return 
+def coords_from_geodata(geodata: geopandas.GeoDataFrame) \
+        -> list[tuple[float]]:
+    """return lat,long pairs from geodata with point geometry
 
-def lat_long_multiple(*geodata: geopandas.GeoDataFrame) -> tuple[tuple[float]]:
-    return
+    sample return value is [(1, 2), (3, 4)]
+    """
+    assert all('point' in t.lower() for t in geodata.geometry.geom_type.unique()), \
+            "geometry must be points before extracting lat,long pairs"
+    return [(p.x, p.y) for p in geodata.geometry]
+
+def coords_from_multiple(*geodata: geopandas.GeoDataFrame) \
+        -> tuple[list[tuple[float]]]:
+    """
+    """
+    return tuple(map(coords_from_geodata, geodata))
+
+def lat_long_from_coords(coords: list[tuple]) :
+    """given a list of coordinates [ len(tuple)==2 ] extract first
+    values as lattitude and second values a longitudes values
+    """
+    # get list of (lat, long) pairs from geodata
+    coords = coords_from_geodata(origin)
+    x, y = list(zip(*coords))[0], list(zip(*coords))[1]
+    return list(x), list(y)
+
+
+def nearest_node_ids(G: nx.MultiDiGraph, longitude: list[float],
+        lattitude: list[float]) -> list[str]:
+    """get the id's of nearest nodes around some coordinates in a
+    graph
+    """
+    return ox.nearest_nodes(G, longitude, lattitude)
+
+def nearest_node(nodes: geopandas.GeoDataFrame, node_ids: list[str]):
+    """return a geopandas or geoseries selected from nodes based on
+    node ids
+    """
+    return nodes.loc[nearest_node_id()]
 
 def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     -> geopandas.GeoDataFrame:
@@ -203,6 +236,6 @@ class PlotArgs(dict):
         """
         gtypes = ' '.join(list(geodata.geometry.geom_type.unique())).lower()
         if 'point' in gtypes or 'polygon' in gtypes:
-            self.points(**kwargs)
+            return self.points(**kwargs)
         elif 'line' in gtypes:
-            self.lines(**kwargs)
+            return self.lines(**kwargs)

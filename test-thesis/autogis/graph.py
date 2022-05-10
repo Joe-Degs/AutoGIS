@@ -201,8 +201,9 @@ class Graph:
             self.__add_geometry(key, geom, **kwargs)
         return self
 
+
     # TODO(Joe-Degs): do the add_routes function on routes
-    def add_route(self, route: Route, **kwargs) -> Self:
+    def shortest_path_with_route(self, route: Route, **kwargs) -> Self:
         """add origin/dest points and get shortest path between points
 
         this route(s) can be plotted, used for shortest path analysis
@@ -212,10 +213,11 @@ class Graph:
             route (Route): route of origin/destination point(s)
             kwargs: keyword args to pass to `plot` function
         """
+        # project data to same CRS if not already done
         self.projected().nodes_and_edges()
-        # route.shortest_paths(self)
-        # args = plot_args(**plt_args):
-        # self.routes.append((route, args))
+        route.reproject(self.crs())
+
+        # extract coordinates from points
         return self
 
     def plot(self, graph: Optional[nx.MultiDiGraph]=None):
@@ -238,8 +240,16 @@ class Graph:
                           figsize=args['figsize'])
     
     
-    def static_plot(self, lines: dict, points: dict, **kwargs):
-        """
+    def static_plot(self, node_kwargs: Optional[dict]={}, \
+            edge_kwargs: Optional[dict]={}, **kwargs):
+        """generate a static plot of the street network graph
+
+        see `PlotArgs` args on how arguments to plot functions are managed
+
+        Args:
+            node_kwargs (dict, optional): keyword arguments to plot nodes
+            edge_kwargs (dict, optional): keyword arguments to plot edges
+            kwargs: keyword arguments for plotting. see `PlotArgs` for more
 
         Returns:
             pyplot.Figure, pyplot.Axes: return the figure and axis
@@ -250,11 +260,12 @@ class Graph:
         
         # plot edges in network
         if args['nodes']:
-            self.nodes().N.plot(ax=ax, **args.points(alpha=None, **points))
+            self.nodes().N.plot(ax=ax,
+                    **args.points(alpha=None, **node_kwargs))
         
         # plot the edges in graph / street network
         if args['edges']:
-            self.edges().E.plot(ax=ax, **args.lines(**lines))
+            self.edges().E.plot(ax=ax, **args.lines(**edge_kwargs))
         
         # plot the axis
         if not args['axis']:
