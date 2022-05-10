@@ -1,6 +1,7 @@
+from select import select
 from typing import Callable, Optional
 from typing_extensions import Self
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
 import osmnx as ox
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -200,6 +201,27 @@ class Graph:
                     ox.geometries_from_polygon(self.extent(), tags))
             self.__add_geometry(key, geom, **kwargs)
         return self
+    
+    def shortest_path(self, origin: str, dest: str):
+        """_summary_
+
+        Args:
+            origin (_type_): _description_
+            dest (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        return nx.shortest_path(self.graph(), source=origin, target=dest,
+                                weight='length')
+        
+    def routes_to_geodata(self, *routes):
+        route_nodes = [self.N.loc[route] for route in routes]
+        route_lines = [LineString(list(geo.geometry.values)) for geo in route_nodes]
+        route_geom = geopandas.GeoDataFrame(route_lines, geometry='geometry', crs=self.crs, columns=['geometry'])
+        route_geom['route_dist'] = route_geom.length
+        route_geom['osmids'] = [str(list(geo.index.values)) for geo in route_nodes]
+        return route_geom
 
 
     # TODO(Joe-Degs): do the add_routes function on routes
@@ -217,7 +239,21 @@ class Graph:
         self.projected().nodes_and_edges()
         route.reproject(self.crs())
 
-        # extract coordinates from points
+        # extract nearest nodes and ids surrounding origin/dest points
+        origin_id = nearest_node_ids(self.graph(), \
+            *lat_long_from_coords(coords_from_geodata(route.origin_geo)))
+        # origin_node = select_from(self.nodes().N, origin_id)
+        
+        dest_id = nearest_node_ids(self.graph(), \
+            *lat_long_from_coords(coords_from_geodata(route.dest_geo)))
+        # dest_node = select_from(self.N, dest_id)
+        
+        all_ids = concat_ids(origin_id, dest_id)
+        
+        shortest_routes = list(map(self.shortest_path, origin_id, dest_id))
+        
+        self.routes_to_geodata(shortest_routes)
+        
         return self
 
     def plot(self, graph: Optional[nx.MultiDiGraph]=None):

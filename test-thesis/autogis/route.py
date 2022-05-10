@@ -133,18 +133,6 @@ class Route():
         """
         return ox.graph_from_polygon(self.extent(), **kwargs)
 
-    # this function cannot take a graph cos circular imports, so we
-    # have to do all shortest paths on the graph instead
-    def shortest_paths(self):
-        """shortest path analysis
-
-        Args:
-            G: (Graph): graph data to do shortest path analysis on
-        """
-        # G.project().nodes_and_edges()
-        # crs = G.crs()
-        return self
-
     def reproject(self, crs: CRS | str):
         """reproject geodata into new CRS
 
@@ -164,7 +152,7 @@ class Route():
         geodata = self.geodata()
         coords = [[p.y, p.x] for p in geodata.geometry]
         map = folium.Map(
-                **PlotArgs(location=random.choice(coords).interactive(**kwargs)))
+                **PlotArgs(location=random.choice(coords)).interactive(**kwargs))
         # add address markers to the map
         for i, coord in enumerate(coords):
             map.add_child(

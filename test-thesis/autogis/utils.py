@@ -5,6 +5,8 @@ import pandas
 
 import contextily as ctx
 from pyproj import CRS
+import osmnx as ox
+import networkx as nx
 from shapely.geometry import Point
 
 def load_csv(sep: str, *files: str, **kwargs) -> list[pandas.DataFrame]:
@@ -52,8 +54,6 @@ def lat_long_from_coords(coords: list[tuple]) :
     """given a list of coordinates [ len(tuple)==2 ] extract first
     values as lattitude and second values a longitudes values
     """
-    # get list of (lat, long) pairs from geodata
-    coords = coords_from_geodata(origin)
     x, y = list(zip(*coords))[0], list(zip(*coords))[1]
     return list(x), list(y)
 
@@ -65,11 +65,20 @@ def nearest_node_ids(G: nx.MultiDiGraph, longitude: list[float],
     """
     return ox.nearest_nodes(G, longitude, lattitude)
 
-def nearest_node(nodes: geopandas.GeoDataFrame, node_ids: list[str]):
+def select_from(data: geopandas.GeoDataFrame, ids: list[str]):
     """return a geopandas or geoseries selected from nodes based on
     node ids
     """
-    return nodes.loc[nearest_node_id()]
+    return data.loc[ids]
+
+def concat_ids(*ids: list[str]) -> list[str]:
+    """concatenate list of ids
+
+    Returns:
+        list[str]: _description_
+    """
+    return list(set(*ids))
+    
 
 def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     -> geopandas.GeoDataFrame:
