@@ -45,6 +45,9 @@ class Graph:
             case 'polygon':
                 self.downloader = ox.graph_from_polygon
             case 'route':
+                # TODO(Joe-Degs): give the option to use route_polygon
+                # route_centroid so we can specify distance since buffering
+                # is downloading too much data
                 # get graph from origins(s)/destination(s) points
                 self.downloader = opt_arg.graph
             case 'custom':
@@ -239,7 +242,7 @@ class Graph:
             kwargs: keyword args to pass to `plot` function
         """
         # project data to same CRS if not already done
-        self.projected().nodes_and_edges()
+        self.project().nodes_and_edges()
         route.reproject(self.crs())
 
         # extract nearest nodes and ids surrounding origin/dest points

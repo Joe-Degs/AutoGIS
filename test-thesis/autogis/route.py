@@ -123,7 +123,7 @@ class Route():
         it is buffered a little bit to contain important adjoining
         streets that might be cut off otherwise
         """
-        return self.geodata().unary_union.convex_hull.buffer(0.1)
+        return self.geodata().unary_union.convex_hull.buffer(0.01)
     
     def graph(self, **kwargs) -> nx.MultiDiGraph:
         """download the street network graph of the area covering routes
