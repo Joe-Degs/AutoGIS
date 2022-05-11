@@ -50,7 +50,7 @@ def coords_from_multiple(*geodata: geopandas.GeoDataFrame) \
     """
     return tuple(map(coords_from_geodata, geodata))
 
-def lat_long_from_coords(coords: list[tuple]) :
+def lat_long_from_coords(coords: list[tuple]):
     """given a list of coordinates [ len(tuple)==2 ] extract first
     values as lattitude and second values a longitudes values
     """
@@ -89,6 +89,17 @@ def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     """
     return data.to_crs(crs) if data.crs != crs \
         else data
+
+def unhashable_cols(data: geopandas.GeoDataFrame):
+    """get columns with unhashable types
+    
+    this is to stop the error: unhashable type: 'list'
+    """
+    # get all columns with unhashable types
+    cols_stat = list((data.applymap(type) == list).any().items())
+    # change unhashable types to str
+    # data[cols] = data[cols].astype(str) 
+    return [col for col, stat in cols_stat if stat]
 
 class PlotArgs(dict):    
     """collects all the args required to do a static/interactive plot
@@ -162,7 +173,7 @@ class PlotArgs(dict):
                 linestyle='-',
 
                 # styles for nodes/polygons
-                markersize=20,
+                markersize=10,
                 marker='o',
 
                 # static plot config

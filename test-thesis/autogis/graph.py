@@ -44,12 +44,11 @@ class Graph:
                 self.downloader = ox.graph_from_point
             case 'polygon':
                 self.downloader = ox.graph_from_polygon
-            case 'route':
-                # TODO(Joe-Degs): give the option to use route_polygon
-                # route_centroid so we can specify distance since buffering
-                # is downloading too much data
+            case 'route_polygon':
                 # get graph from origins(s)/destination(s) points
-                self.downloader = opt_arg.graph
+                self.downloader = opt_arg.graph_from_polygon
+            case 'route_point':
+                self.downloader = opt_arg.graph_from_point
             case 'custom':
                 self.downloader = opt_arg
 
@@ -146,6 +145,7 @@ class Graph:
         """get CRS of the graph
         """
         return self.nodes().N.crs
+    
     
     def extent(self) -> Polygon:
         """get entire area that graph covers as a shapely polygon
@@ -244,13 +244,22 @@ class Graph:
         # project data to same CRS if not already done
         self.project().nodes_and_edges()
         route.reproject(self.crs())
+        # self.make_hashable(self.N)
+        # self.make_hashable(self.E)
+        unhashables = unhashable_cols(self.N)
+        if len(unhashables) > 0:
+            self.N[unhashables] = self.N[unhashables].astype(str)
+
+        unhashables = unhashable_cols(self.E)
+        if len(unhashables) > 0:
+            self.E[unhashables] = self.E[unhashables].astype(str)
 
         # extract nearest nodes and ids surrounding origin/dest points
-        origin_id = nearest_node_ids(self.graph(), \
+        origin_id = nearest_node_ids(self.graph(),
             *lat_long_from_coords(coords_from_geodata(route.origin_geo)))
         # origin_node = select_from(self.nodes().N, origin_id)
         
-        dest_id = nearest_node_ids(self.graph(), \
+        dest_id = nearest_node_ids(self.graph(),
             *lat_long_from_coords(coords_from_geodata(route.dest_geo)))
         # dest_node = select_from(self.N, dest_id)
         
@@ -266,7 +275,7 @@ class Graph:
         
         return self
 
-    def plot(self, graph: Optional[nx.MultiDiGraph]=None):
+    def plot(self, graph: Optional[nx.MultiDiGraph]=None, **kwargs):
         """plot uses the osmnx.plot_graph method to do exploratory plot
         of the graph. It recieves an optional `graph` parameter to plot
         instead of the one associated with the object.
@@ -275,7 +284,7 @@ class Graph:
         ---------
         graph: networkx.MultiDiGraph
         """
-        return ox.plot_graph(graph or self.graph())
+        return ox.plot_graph(graph or self.graph(), **kwargs)
    
     # TODO(Joe-Degs): take care of this shit, this whole code is
     # gross, but this shit is way too gross. remove it, make it
@@ -286,8 +295,7 @@ class Graph:
                           figsize=args['figsize'])
     
     
-    def static_plot(self, node_kwargs: Optional[dict]={}, \
-            edge_kwargs: Optional[dict]={}, **kwargs):
+    def static_plot(self, node_kwargs: dict={}, edge_kwargs: dict={}, **kwargs):
         """generate a static plot of the street network graph
 
         see `PlotArgs` args on how arguments to plot functions are managed

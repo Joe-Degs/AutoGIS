@@ -63,7 +63,7 @@ class Route():
                 origin = [origin]
                 dest = [dest] 
                 # DEBUG 
-                print(self.origin, self.dest)
+                # print(self.origin, self.dest)
                 
             self.origin = pandas.DataFrame(origin, columns=['y', 'x'])
             self.dest = pandas.DataFrame(dest, columns=['y', 'x'])
@@ -123,15 +123,23 @@ class Route():
         it is buffered a little bit to contain important adjoining
         streets that might be cut off otherwise
         """
-        return self.geodata().unary_union.convex_hull.buffer(0.01)
+        return self.geodata().unary_union.convex_hull
     
-    def graph(self, **kwargs) -> nx.MultiDiGraph:
+    def graph_from_polygon(self, **kwargs) -> nx.MultiDiGraph:
         """download the street network graph of the area covering routes
 
         Returns:
             nx.MultiDiGraph: graph reprenting street network
         """
-        return ox.graph_from_polygon(self.extent(), **kwargs)
+        return ox.graph_from_polygon(self.extent().buffer(0.01), **kwargs)
+
+    def graph_from_point(self, **kwargs) -> nx.MultiDiGraph:
+        """download the street network graph of the area covering routes
+
+        Returns:
+            nx.MultiDiGraph: graph reprenting street network
+        """
+        return ox.graph_from_point(self.extent().centroid, **kwargs)
 
     def reproject(self, crs: CRS | str):
         """reproject geodata into new CRS
