@@ -188,7 +188,7 @@ class PlotArgs(dict):
 
         self.gen = ['color', 'alpha']
         if add_keys:
-            self.gen = self.gen + list(kwargs.keys())
+            self.gen = list(set(self.gen + list(kwargs.keys())))
 
     def update(self, **kwargs):
         """update plot keyword arguments

@@ -216,16 +216,19 @@ class Graph:
                                 weight='length')
         
     def routes_to_geodata(self, *routes):
+        """given a list of routes, """
         route_nodes = [self.N.loc[route] for route in routes]
         route_lines = [LineString(list(geo.geometry.values)) for geo in route_nodes]
-        route_geom = geopandas.GeoDataFrame(route_lines, geometry='geometry', crs=self.crs, columns=['geometry'])
+        route_geom = geopandas.GeoDataFrame(route_lines, geometry='geometry',
+                crs=self.crs, columns=['geometry'])
         route_geom['route_dist'] = route_geom.length
         route_geom['osmids'] = [str(list(geo.index.values)) for geo in route_nodes]
         return route_geom
 
 
     # TODO(Joe-Degs): do the add_routes function on routes
-    def shortest_path_with_route(self, route: Route, **kwargs) -> Self:
+    def shortest_path_with_route(self, route: Route, edge_kwargs={},
+            node_kwargs={}) -> Self:
         """add origin/dest points and get shortest path between points
 
         this route(s) can be plotted, used for shortest path analysis
@@ -248,11 +251,15 @@ class Graph:
             *lat_long_from_coords(coords_from_geodata(route.dest_geo)))
         # dest_node = select_from(self.N, dest_id)
         
-        all_ids = concat_ids(origin_id, dest_id)
-        
         shortest_routes = list(map(self.shortest_path, origin_id, dest_id))
-        
-        self.routes_to_geodata(shortest_routes)
+       
+        # add shortest path lines with linestring geometry
+        routes = self.routes_to_geodata(shortest_routes)
+        self.__add_geometry('shortest_path_egdes', routes, **edge_kwargs)
+
+        # add the node of shortest paths in the graph
+        all_nodes = select_from(self.N, list(set(origin_id + dest_id)))
+        self.__add_geometry('shortest_path_nodes', all_nodes, **node_kwargs)
         
         return self
 
