@@ -9,3 +9,6 @@ upon by others.
 
 ### All Street Networks - from center of Adum to 1KM radius
 ![alt text](https://github.com/Joe-Degs/AutoGIS/raw/master/test-thesis/images/yikes_plot.png)
+
+### Shortest path analysis
+![alt text](https://github.com/Joe-Degs/AutoGIS/raw/master/test-thesis/images/shortest_path.png)
