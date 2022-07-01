@@ -90,16 +90,14 @@ def to_crs(crs: CRS | str, data: geopandas.GeoDataFrame) \
     return data.to_crs(crs) if data.crs != crs \
         else data
 
-def unhashable_cols(data: geopandas.GeoDataFrame):
-    """get columns with unhashable types
+def unhashable_cols(data: geopandas.GeoDataFrame) -> list[str]:
+    """return the names of all columns with unhashable types
     
     this is to stop the error: unhashable type: 'list'
+    geometry columns are excluded
     """
-    # get all columns with unhashable types
     cols_stat = list((data.applymap(type) == list).any().items())
-    # change unhashable types to str
-    # data[cols] = data[cols].astype(str) 
-    return [col for col, stat in cols_stat if stat]
+    return [c for c, h in cols_stat if h and c != 'geometry']
 
 class PlotArgs(dict):    
     """collects all the args required to do a static/interactive plot
