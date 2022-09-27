@@ -4,10 +4,39 @@ import pandas
 import geopandas
 import networkx as nx
 import osmnx as ox
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 from typing import Optional
 
 from .utils import *
+
+class GeoPoint():
+    def __init__(self, file: str, sep=','):
+        self.data = pandas.read_csv(file, sep=sep)
+        self.geodata = geopandas.GeoDataFrame(
+            self.data, geometry=geopandas.points_from_xy(self.data.x, self.data.y))
+
+    def explore(self, **kwargs) -> folium.Map:
+        """do interactive plot to explore origin/destination points
+        
+        Args:
+            **kwargs: keyword args for folium map plotter
+        """
+        geodata = self.geodata
+        coords = [[p.y, p.x] for p in geodata.geometry]
+        map = folium.Map(
+                **PlotArgs(location=random.choice(coords)).interactive(**kwargs))
+        # add address markers to the map
+        for i, coord in enumerate(coords):
+            name = f'{geodata.city[i]} - {geodata.place[i]}'
+            map.add_child(
+                folium.Marker(location=coord, popup=name,
+                              icon=folium.Icon(color='red', icon='ok-sign'))
+            )
+
+        if 'filepath' in kwargs:
+            map.save(kwargs['filepath'])
+
+        return map
 
 class Route():
     """route allows you to load a point or bunch of them
@@ -55,7 +84,10 @@ class Route():
         typ = point_type.split('_')
         assert len(typ) >= 1, "Route: invalid point_type"
         if typ[0] == 'csv':
-            self.origin, self.dest = load_csv(',', origin, dest)
+            if origin is not None:
+                self.origin = pandas.read_csv(origin, sep=',')
+            if dest is not None:
+                self.dest = pandas.read_csv(origin, sep=',')
         elif typ[0] == 'coords':
             
             # if coordinates is not list, convert to list
@@ -63,26 +95,30 @@ class Route():
                 origin = [origin]
                 dest = [dest] 
                 # DEBUG 
-                # print(self.origin, self.dest)
-                
+                # print(self.origin, self.dest) 
             self.origin = pandas.DataFrame(origin, columns=['y', 'x'])
             self.dest = pandas.DataFrame(dest, columns=['y', 'x'])
         
         # do the geocode
         if 'coords' in point_type:
-            self.origin_geo, self.dest_geo = reverse_geocode_all(
-                coords_from_df(self.origin), coords_from_df(self.dest))
+            if self.origin is not None:
+                self.origin_geo = reverse_geocode(
+                    coords_from_df(self.origin))
+            if self.dest is not None:
+                self.dest_geo = reverse_geocode(
+                    coords_from_df(self.dest))
 
             # get shapely types of geometry column and assert they are
             # all point geometries
+            print(self.origin.head())
             all_types = list(self.origin_geo.geometry.geom_type.unique()) \
-                    + list(self.dest_geo.geometry.geom_type.unique())
+                    + list(self.dest_geo.geometry.geom_type.unique() if self.dest_geo is not None else ())
             assert all('point' in t.lower() for t in all_types), \
                     "origin/destination points must be Point geometries"
         elif 'name' in point_type:
             #TODO(Joe-Degs): add geocode from address functionality
-            pass
-        
+                pass
+            
     def to_crs(self, crs):
         "convert origin/destination geodata to new CRS"
         self.origin_geo.to_crs(crs, inplace=True)
