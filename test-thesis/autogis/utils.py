@@ -1,7 +1,10 @@
+from cmath import cos
 import os
 from typing import Sequence
+from xml.etree.ElementTree import PI
 import geopandas
 import pandas
+import math
 
 import contextily as ctx
 from pyproj import CRS
@@ -16,6 +19,30 @@ def load_csv(sep: str, *files: str, **kwargs) -> list[pandas.DataFrame]:
         "load_csv: arguments must be valid csv files"
     return [pandas.read_csv(file, sep=sep or ',', **kwargs) \
         for file in files]
+    
+def calc_bbox(center: tuple|Point, distance: int):
+    """calculate bounding box of length distance around center point
+
+    Args:
+        center (tuple | Point): a tuple of (lat, long) coordinates or a shapely point
+        distance (int): distance(in meters) from point to construct center point
+    """
+    lat, lon = 0, 0
+    if type(center) is Point:
+        lat, lon = center.y, center.x
+    elif type(center) is tuple:
+        lat, lon = center
+    else:
+        raise Exception(f"expected tuple or shapely point, got {str(type(Point))}")
+    off = (distance * 0.001) / 111
+    lat_max = lat + off
+    lat_min = lat - off
+    
+    lon_off = off * math.cos(lat * math.pi / 180.0)
+    lon_max = lon + lon_off
+    lon_min = lon - lon_off
+    
+    return lat_max, lat_min, lon_max, lon_min
 
 def reverse_geocode(coords: list[Point]) -> geopandas.GeoDataFrame:
     """reverse geocode list of shapely points
