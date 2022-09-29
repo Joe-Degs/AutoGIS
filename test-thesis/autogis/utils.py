@@ -22,12 +22,17 @@ def load_csv(sep: str, *files: str, **kwargs) -> list[pandas.DataFrame]:
     
 def calc_bbox(center: tuple|Point, distance: int):
     """calculate bounding box of length distance around center point
+    
+    the formulae used here will not work well for regions along the poles
 
     Args:
         center (tuple | Point): a tuple of (lat, long) coordinates or a shapely point
         distance (int): distance(in meters) from point to construct center point
+    
+    Returns:
+        tuple(float): coordinates in the format north, south, east, west
     """
-    lat, lon = 0, 0
+    lat, lon = 0.0, 0.0
     if type(center) is Point:
         lat, lon = center.y, center.x
     elif type(center) is tuple:
@@ -36,13 +41,21 @@ def calc_bbox(center: tuple|Point, distance: int):
         raise Exception(f"expected tuple or shapely point, got {str(type(Point))}")
     off = (distance * 0.001) / 111
     lat_max = lat + off
-    lat_min = lat - off
-    
-    lon_off = off * math.cos(lat * math.pi / 180.0)
-    lon_max = lon + lon_off
-    lon_min = lon - lon_off
-    
+    lat_min = lat - off 
+    lon_max = lon + off
+    lon_min = lon - off 
     return lat_max, lat_min, lon_max, lon_min
+
+def download_center_distance(center: tuple|Point, area: int, network_type: str = 'drive') -> nx.MultiDiGraph:
+    """download street network graph of given point with rectangular bbox
+    
+    Args:
+        center (tuple | Point): a tuple of (lat, long) coordinates or a shapely point
+        area (int): distance(in meters) from point to construct center point
+    """
+    n, s, e, w = calc_bbox(center, area)
+    return ox.graph_from_bbox(n, s, e, w, network_type=network_type)
+
 
 def reverse_geocode(coords: list[Point]) -> geopandas.GeoDataFrame:
     """reverse geocode list of shapely points

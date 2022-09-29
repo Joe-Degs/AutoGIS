@@ -14,29 +14,42 @@ class GeoPoint():
         self.data = pandas.read_csv(file, sep=sep)
         self.geodata = geopandas.GeoDataFrame(
             self.data, geometry=geopandas.points_from_xy(self.data.x, self.data.y))
+        
 
     def explore(self, **kwargs) -> folium.Map:
-        """do interactive plot to explore origin/destination points
+        """generate an interactive map of geo coordinates
         
         Args:
             **kwargs: keyword args for folium map plotter
         """
         geodata = self.geodata
         coords = [[p.y, p.x] for p in geodata.geometry]
-        map = folium.Map(
+        m = folium.Map(
                 **PlotArgs(location=random.choice(coords)).interactive(**kwargs))
-        # add address markers to the map
         for i, coord in enumerate(coords):
             name = f'{geodata.city[i]} - {geodata.place[i]}'
-            map.add_child(
-                folium.Marker(location=coord, popup=name,
-                              icon=folium.Icon(color='red', icon='ok-sign'))
-            )
+            folium.Marker(location=coord, popup=name,
+                            icon=folium.Icon(color='red', icon='ok-sign')).add_to(m)
 
         if 'filepath' in kwargs:
-            map.save(kwargs['filepath'])
+            m.save(kwargs['filepath'])
 
-        return map
+        return m
+    
+    def explore_rect(self, distance: int) -> folium.Map:
+        """draw rectangular bounding box around geo coordinates
+
+        Args:
+            distance (int): area of rectange in meters
+
+        Returns:
+            folium.Map: return an interactive map object
+        """
+        m = self.explore()
+        for p in self.geodata.geometry:
+            a, b, c, d = calc_bbox(p, distance)
+            folium.Rectangle([(a, c), (b, d)]).add_to(m)
+        return m
 
 class Route():
     """route allows you to load a point or bunch of them
