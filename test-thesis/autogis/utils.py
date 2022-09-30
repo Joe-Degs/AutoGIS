@@ -1,11 +1,10 @@
-from cmath import cos
 import os
 from typing import Sequence
-from xml.etree.ElementTree import PI
 import geopandas
 import pandas
-import math
 
+import matplotlib.colors as colors
+import matplotlib.cm as cm
 import contextily as ctx
 from pyproj import CRS
 import osmnx as ox
@@ -46,6 +45,18 @@ def calc_bbox(center: tuple|Point, distance: int):
     lon_min = lon - off 
     return lat_max, lat_min, lon_max, lon_min
 
+def get_graph_area(G: nx.MultiDiGraph):
+    """return area of graph in meters
+
+    Args:
+        G (nx.MultiDiGraph): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    nodes = ox.graph_to_gdfs(ox.project_graph(G), edges=False)
+    return nodes.unary_union.convex_hull.area
+
 def download_center_distance(center: tuple|Point, area: int, network_type: str = 'drive') -> nx.MultiDiGraph:
     """download street network graph of given point with rectangular bbox
     
@@ -56,6 +67,92 @@ def download_center_distance(center: tuple|Point, area: int, network_type: str =
     n, s, e, w = calc_bbox(center, area)
     return ox.graph_from_bbox(n, s, e, w, network_type=network_type)
 
+def black_bg_plot(G: nx.MultiDiGraph, **kwargs):
+    """plot black street network graph on white background
+    
+    Returns:
+        fig, ax: matplotib figure and axes objects
+    """
+    return ox.plot_graph(
+        G,
+        figsize=(10, 10),  # figure size to create if ax is None
+        bgcolor="w",  # background color of the plot
+        node_color="black",  # color of the nodes
+        node_size=20,  # size of the nodes: if 0, skip plotting them
+        edge_color="black",  # color of the edges
+        edge_linewidth=1.5,  # width of the edges: if 0, skip plotting them
+        show=False,
+        **kwargs)
+    
+def visualize_edge_cc(G: nx.MultiDiGraph, **kwargs):
+    """calculate and plot centrality for each street in the graph
+    the color map depicts the most central streets in bright yellow
+    and least central in dark purple
+    
+    Returns:
+        fig, ax: matplotib figure and axes objects
+    """
+    edge_centrality = nx.closeness_centrality(nx.line_graph(G))
+    ev = [edge_centrality[edge + (0,)] for edge in G.edges()]
+    norm = colors.Normalize(vmin=min(ev)*0.8, vmax=max(ev))
+    cmap = cm.ScalarMappable(norm=norm, cmap=cm.inferno)
+    ec = [cmap.to_rgba(cl) for cl in ev]
+    return ox.plot_graph(
+        G,
+        bgcolor='white',
+        figsize=(10, 10),
+        node_size=0,
+        edge_color=ec,
+        edge_linewidth=2,
+        edge_alpha=1,
+        show=False,
+        **kwargs)
+
+def visualize_node_length(G: nx.MultiDiGraph, **kwargs):
+    """colormap of nodes based on their attributes
+
+    Args:
+        G (nx.MultiDiGraph): street network graph
+    
+    Returns:
+        fig, ax: matplotib figure and axes objects
+    """
+    nc = ox.plot.get_node_colors_by_attr(G, 'y', cmap='inferno')
+    return ox.plot_graph(
+        G,
+        figsize=(10, 10),
+        bgcolor='white',
+        node_size=20,
+        node_color=nc,
+        edge_color='black',
+        edge_linewidth=0.3,
+        show=False,
+        **kwargs)
+
+def visualize_node_bc(G: nx.MultiDiGraph, **kwargs):
+    """calculate and plot betweeness centrality of nodes on the directed graph
+    of the downloaded multigraph 
+
+    Args:
+        G (nx.MultiDiGraph): street network downloaded and constructed by osmnx
+    
+    Returns:
+        fig, ax: matplotib figure and axes objects
+    """
+    bc = nx.betweenness_centrality(ox.get_digraph(G), weight='length')
+    nx.set_node_attributes(G, bc, 'bc')
+    nc = ox.plot.get_node_colors_by_attr(G, 'bc', cmap='inferno')
+    return ox.plot_graph(
+        G,
+        figsize=(10, 10),
+        bgcolor='white',
+        node_color=nc,
+        node_size=50,
+        node_zorder=2,
+        edge_color='black',
+        edge_linewidth=0.3,
+        show=False,
+        **kwargs)
 
 def reverse_geocode(coords: list[Point]) -> geopandas.GeoDataFrame:
     """reverse geocode list of shapely points
