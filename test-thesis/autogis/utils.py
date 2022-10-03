@@ -4,6 +4,7 @@ import geopandas
 import pandas
 
 import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import contextily as ctx
 from pyproj import CRS
@@ -107,6 +108,82 @@ def visualize_edge_cc(G: nx.MultiDiGraph, **kwargs):
         edge_alpha=1,
         show=False,
         **kwargs)
+
+def visualize_edge_bc(G: nx.MultiDiGraph, **kwargs):
+    """visualize the betweenness centrality of street segments
+
+    the color map depicts the most central streets in bright yellow
+    and least central in dark purple
+    
+    returns:
+        fig, ax: matplotib figure and axes objects
+    """
+    bc = nx.edge_betweenness(G, normalized=True)
+    ev = [i[0] + (0,) for i in bc.items()]
+    for i, j in zip(ev, bc.keys()):
+        bc[i] = bc[j]
+        del bc[j]
+    norm = colors.Normalize(vmin=min(bc.values())*0.8, vmax=max(bc.values()))
+    cmap = cm.ScalarMappable(norm=norm, cmap=cm.inferno)
+    ec = [cmap.to_rgba(cl) for cl in bc.values()]
+    return ox.plot_graph(
+        G,
+        bgcolor='white',
+        figsize=(10, 10),
+        node_size=0,
+        edge_color=ec,
+        edge_linewidth=2,
+        edge_alpha=1,
+        show=False,
+        **kwargs)
+
+def clean_heights(x):
+    try:
+        return float(x)
+    except ValueError:
+        return 0
+
+def building_footprint_from_graph(path: str, dist=700):
+    """given the path to the graph, download and save the building footprint of
+    the graph
+    """
+    G = ox.load_graphml(f"{path}.graphml")
+    nodes = ox.graph_to_gdfs(ox.project_graph(G), edges=False)
+    center = nodes.unary_union.convex_hull.centroid
+    lat, lng = center.y, center.x
+    gdf = None
+    file = f"{path}.geojson"
+    if not os.path.exists(file):
+        gdf = ox.geometries.geometries_from_point((lat,lng), dist=dist, tags={'building': True})
+        gdf.to_file(file, driver="GeoJSON")
+    else:
+        gdf = geopandas.read_file(file)
+    buildings = ox.projection.project_gdf(gdf)
+    buildings = buildings[buildings.geom_type.isin(['Polygon', 'MultiPolygon'])]
+    buildings['height'] = buildings['height'].fillna(0).apply(clean_heights)
+    buildings = buildings.reset_index().explode()
+    buildings.reset_index(inplace=True, drop=True)
+    return buildings
+
+def visualize_street_footprint(path: str, **kwargs):
+    """visualize the building footprints of study area
+    """
+    G = ox.load_graphml(f"{path}.graphml")
+    G = ox.projection.project_graph(G)
+    edges = ox.graph_to_gdfs(G, nodes=False, edges=True, node_geometry=False,
+            fill_edge_geometry=True)
+    buildings = building_footprint_from_graph(path)
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    buildings.plot(ax=ax, color='darkgrey')
+    edges.plot(ax=ax)
+    ax.set_axis_off()
+    return fig, ax
+
+def visualize_street_profile(path: str, **kwargs):
+    """
+
+    """
+    pass
 
 def visualize_node_length(G: nx.MultiDiGraph, **kwargs):
     """colormap of nodes based on their attributes
