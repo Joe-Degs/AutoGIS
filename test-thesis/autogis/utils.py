@@ -151,10 +151,11 @@ def building_footprint_from_graph(path: str, dist=700):
     nodes = ox.graph_to_gdfs(ox.project_graph(G), edges=False)
     center = nodes.unary_union.convex_hull.centroid
     lat, lng = center.y, center.x
+    print(lat, lng)
     gdf = None
     file = f"{path}.geojson"
     if not os.path.exists(file):
-        gdf = ox.geometries.geometries_from_point((lat,lng), dist=dist, tags={'building': True})
+        gdf = ox.geometries_from_point((lat,lng), dist=dist, tags={'building': True})
         gdf.to_file(file, driver="GeoJSON")
     else:
         gdf = geopandas.read_file(file)
